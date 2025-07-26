@@ -10,7 +10,7 @@ on:
         description: "Custom kernel source URL"
         required: true
         type: string
-        default: "https://github.com/topnotchfreaks/kernel_msm-5.15"
+        default: "https://github.com/vkyas/kernel_msm-5.15.git"
       kernelPrivateSource:
         description: "Is private source?"
         required: false
@@ -20,7 +20,7 @@ on:
         description: "Kernel branch (default if empty)"
         required: false
         type: string
-        default: "codelinaro"
+        default: "zephyr"
       kernelDevice:
         description: "Device (used for defconfig)"
         required: true
@@ -51,7 +51,7 @@ on:
       clangCompiler:
         description: "Choose Clang compiler"
         required: true
-        default: "TopNotchFreaks Clang"
+        default: "Greenforce Clang"
         type: choice
         options:
           - "ZyC Clang"
@@ -124,22 +124,29 @@ jobs:
 
       - name: "💫 Get Toolchains"
         run: |
-          set -e
+          set -e  # Exit on errors
+          
+          # Function to fetch latest release tar.gz URL from GitHub
           get_latest_github_release() {
             local repo_url="$1"
             latest_url=$(curl -sL "https://api.github.com/repos/$repo_url/releases/latest" | grep "browser_download_url.*tar.gz" | cut -d '"' -f 4 | head -n 1)
+            
             if [[ -z "$latest_url" ]]; then
               echo "❌ Failed to fetch latest release from $repo_url!"
               exit 1
             fi
-            printf "%s" "$latest_url"
+            
+            printf "%s" "$latest_url"  # Use printf to output only the URL
           }
+          
+          # Determine the Clang URL dynamically
           case "${{ github.event.inputs.clangCompiler }}" in
             "ZyC Clang")
               clang_url=$(get_latest_github_release "ZyCromerZ/Clang")
               ;;
             "Greenforce Clang")
-              clang_url=$(get_latest_github_release "greenforce-project/greenforce_clang")
+              # Directly use the provided URL for Greenforce Clang as requested
+              clang_url="https://github.com/greenforce-project/greenforce_clang/releases/download/13072025/greenforce-clang-21.0.0git-13072025.tar.gz"
               ;;
             "TopNotchFreaks Clang")
               clang_url=$(get_latest_github_release "topnotchfreaks/clang")
@@ -149,11 +156,18 @@ jobs:
               exit 1
               ;;
           esac
+          
           echo "✅ Clang URL: $clang_url"
+          
+          # Create clang directory
           mkdir -p clang
+          
+          # Check if it's an archive or a Git repo
           if [[ "$clang_url" == *.tar.gz ]]; then
             echo "🚀 Downloading latest Clang from: $clang_url..."
-            aria2c -x 16 -s 16 --file-allocation=none --dir=clang --out=clang.tar.gz "$clang_url" || { echo "❌ Failed to download Clang!"; exit 1; }
+            wget --progress=bar:force -O "clang/clang.tar.gz" "$clang_url" || { echo "❌ Failed to download Clang!"; exit 1; }
+          
+            # Extract Clang
             echo "📦 Extracting Clang..."
             tar -xf clang/clang.tar.gz -C clang || { echo "❌ Extraction failed!"; exit 1; }
             rm -f clang/clang.tar.gz
@@ -161,20 +175,26 @@ jobs:
             echo "🚀 Cloning Clang from $clang_url..."
             git clone --recursive --depth=1 "$clang_url" clang || { echo "❌ Cloning failed!"; exit 1; }
           fi
+          
+          # Find Clang's bin directory
           if [ -d "clang/bin" ]; then
             CLANG_PATH="${{ github.workspace }}/clang/bin"
           else
             CLANG_PATH=$(find clang -type d -name "bin" | head -n 1)
             CLANG_PATH="${{ github.workspace }}/${CLANG_PATH}"
           fi
+          
+          # Ensure Clang binary exists
           if [ ! -f "$CLANG_PATH/clang" ]; then
             echo "❌ Clang binary not found in $CLANG_PATH! Build might fail."
-            ls -R clang
+            ls -R clang  # Debugging: Show extracted files
             exit 1
           fi
+          
           echo "✅ Using Clang from $CLANG_PATH"
           echo "CLANG_PATH=$CLANG_PATH" >> $GITHUB_ENV
-          echo "$CLANG_PATH" >> $GITHUB_PATH
+          echo "$CLANG_PATH" >> $GITHUB_PATH  # Ensures path is updated
+          
           export PATH="$CLANG_PATH:$PATH"
           export CLANG_TRIPLE="aarch64-linux-gnu-"
           export CC=clang
@@ -184,6 +204,7 @@ jobs:
           export OBJCOPY="llvm-objcopy"
           export OBJDUMP="llvm-objdump"
           export STRIP="llvm-strip"
+          
           echo "⚙️ Using Clang version:"
           clang --version || echo "❌ Clang not found in PATH!"
 
@@ -408,22 +429,29 @@ jobs:
 
       - name: "💫 Get Toolchains"
         run: |
-          set -e
+          set -e  # Exit on errors
+          
+          # Function to fetch latest release tar.gz URL from GitHub
           get_latest_github_release() {
             local repo_url="$1"
             latest_url=$(curl -sL "https://api.github.com/repos/$repo_url/releases/latest" | grep "browser_download_url.*tar.gz" | cut -d '"' -f 4 | head -n 1)
+            
             if [[ -z "$latest_url" ]]; then
               echo "❌ Failed to fetch latest release from $repo_url!"
               exit 1
             fi
-            printf "%s" "$latest_url"
+            
+            printf "%s" "$latest_url"  # Use printf to output only the URL
           }
+          
+          # Determine the Clang URL dynamically
           case "${{ github.event.inputs.clangCompiler }}" in
             "ZyC Clang")
               clang_url=$(get_latest_github_release "ZyCromerZ/Clang")
               ;;
             "Greenforce Clang")
-              clang_url=$(get_latest_github_release "greenforce-project/greenforce_clang")
+              # Directly use the provided URL for Greenforce Clang as requested
+              clang_url="https://github.com/greenforce-project/greenforce_clang/releases/download/13072025/greenforce-clang-21.0.0git-13072025.tar.gz"
               ;;
             "TopNotchFreaks Clang")
               clang_url=$(get_latest_github_release "topnotchfreaks/clang")
@@ -433,11 +461,18 @@ jobs:
               exit 1
               ;;
           esac
+          
           echo "✅ Clang URL: $clang_url"
+          
+          # Create clang directory
           mkdir -p clang
+          
+          # Check if it's an archive or a Git repo
           if [[ "$clang_url" == *.tar.gz ]]; then
             echo "🚀 Downloading latest Clang from: $clang_url..."
-            aria2c -x 16 -s 16 --file-allocation=none --dir=clang --out=clang.tar.gz "$clang_url" || { echo "❌ Failed to download Clang!"; exit 1; }
+            wget --progress=bar:force -O "clang/clang.tar.gz" "$clang_url" || { echo "❌ Failed to download Clang!"; exit 1; }
+          
+            # Extract Clang
             echo "📦 Extracting Clang..."
             tar -xf clang/clang.tar.gz -C clang || { echo "❌ Extraction failed!"; exit 1; }
             rm -f clang/clang.tar.gz
@@ -445,20 +480,26 @@ jobs:
             echo "🚀 Cloning Clang from $clang_url..."
             git clone --recursive --depth=1 "$clang_url" clang || { echo "❌ Cloning failed!"; exit 1; }
           fi
+          
+          # Find Clang's bin directory
           if [ -d "clang/bin" ]; then
             CLANG_PATH="${{ github.workspace }}/clang/bin"
           else
             CLANG_PATH=$(find clang -type d -name "bin" | head -n 1)
             CLANG_PATH="${{ github.workspace }}/${CLANG_PATH}"
           fi
+          
+          # Ensure Clang binary exists
           if [ ! -f "$CLANG_PATH/clang" ]; then
             echo "❌ Clang binary not found in $CLANG_PATH! Build might fail."
-            ls -R clang
+            ls -R clang  # Debugging: Show extracted files
             exit 1
           fi
+          
           echo "✅ Using Clang from $CLANG_PATH"
           echo "CLANG_PATH=$CLANG_PATH" >> $GITHUB_ENV
-          echo "$CLANG_PATH" >> $GITHUB_PATH
+          echo "$CLANG_PATH" >> $GITHUB_PATH  # Ensures path is updated
+          
           export PATH="$CLANG_PATH:$PATH"
           export CLANG_TRIPLE="aarch64-linux-gnu-"
           export CC=clang
@@ -468,6 +509,7 @@ jobs:
           export OBJCOPY="llvm-objcopy"
           export OBJDUMP="llvm-objdump"
           export STRIP="llvm-strip"
+          
           echo "⚙️ Using Clang version:"
           clang --version || echo "❌ Clang not found in PATH!"
 
